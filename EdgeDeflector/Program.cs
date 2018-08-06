@@ -1,4 +1,10 @@
-﻿using Microsoft.Win32;
+/*
+ * Copyright © 2017 Daniel Aleksandersen
+ * SPDX-License-Identifier: MIT
+ * License-Filename: LICENSE
+ */
+
+using Microsoft.Win32;
 using System;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -121,21 +127,15 @@ namespace EdgeDeflector
             return uri.StartsWith("microsoft-edge:", StringComparison.OrdinalIgnoreCase) && !uri.Contains(" ");
         }
 
-        static bool IsNewCortanaURI(string uri)
+        static bool IsNonAuthoritativeWithUrlQueryParameter(string uri)
         {
-            return uri.Contains("launchContext1=Microsoft.Windows.Cortana");
+            return uri.Contains("microsoft-edge:?") && uri.Contains("&url=");
         }
 
         static string GetURIFromCortanaLink(string uri)
         {
             NameValueCollection queryCollection = HttpUtility.ParseQueryString(uri);
-            return HttpUtility.UrlDecode(queryCollection["url"]);
-        }
-
-        static string EncodeCortanaParameters(string cortanaUri)
-        {
-            Uri uri = new Uri(cortanaUri);
-            return uri.AbsoluteUri + "?" + HttpUtility.UrlEncode(uri.Query);
+            return queryCollection["url"];
         }
 
         static string RewriteMsEdgeUriSchema(string uri)
@@ -151,16 +151,17 @@ namespace EdgeDeflector
             }
 
             // May be new-style Cortana URI - try and split out
-            if (IsNewCortanaURI(uri))
+            if (IsNonAuthoritativeWithUrlQueryParameter(uri))
             {
                 string cortanaUri = GetURIFromCortanaLink(uri);
                 if (IsHttpUri(cortanaUri))
                 {
                     // Correctly form the new URI before returning
-                    return EncodeCortanaParameters(cortanaUri);
+                    return cortanaUri;
                 }
             }
 
+            // defer fallback to web browser
             return "http://" + new_uri;
         }
 
@@ -187,8 +188,9 @@ namespace EdgeDeflector
                 string uri = RewriteMsEdgeUriSchema(args[0]);
                 OpenUri(uri);
             }
+
             // Install when running without argument
-            else if (args.Length == 0 || args.Equals(null))
+            else if (args.Length == 0)
             {
                 if (!IsElevated())
                 {
